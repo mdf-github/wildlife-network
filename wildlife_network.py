@@ -225,21 +225,21 @@ data = CountryDataFrame('ivory.csv')
 df = data.df
 data.create_df_by_imex()
 
-## imex_pairs = ImportExportPairs(df, weight_scheme=None)
+imex_pairs = ImportExportPairs(df, weight_scheme=None)
 
-## # Create the directed graph
-## G = nx.DiGraph()
+# Create the directed graph
+G = nx.DiGraph()
 
-## # Add nodes and edges
-## G.add_nodes_from(data.all_countries)
-## G.add_weighted_edges_from(imex_pairs.edge_list)
+# Add nodes and edges
+G.add_nodes_from(data.all_countries)
+G.add_weighted_edges_from(imex_pairs.edge_list)
 
-## # Get degree distribution
-## degree_info = DegreeInfo(G)
-## degree_info.plot_degree_files()
+# Get degree distribution
+degree_info = DegreeInfo(G)
+degree_info.plot_degree_files()
 
-## # Draw
-## plt.clf()
-## nx.draw(G, with_labels=True)
-## plt.savefig('ivory_network.png', dpi=400)
-## plt.close()
+# Draw
+plt.clf()
+nx.draw(G, with_labels=True)
+plt.savefig('ivory_network.png', dpi=400)
+plt.close()
