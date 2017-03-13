@@ -15,26 +15,26 @@ class CountryDataFrame(object):
 	def __init__(self, csv_name, csv_dir=os.getcwd()):
 		self.csv_name = csv_name
 		self.csv_dir = csv_dir
-		self.df = self.get_dataframe()
-		self.all_countries = self.get_country_list()
+		self.csv_name_root = os.path.splitext(self.csv_name)[0]
+		self.df = self.set_dataframe()
 
 	def get_dataframe(self):
+		"""Convert full csv file to pandas dataframe for easy referencing"""
 		csv_dir = self.csv_dir
-		csv_name = self.csv_name
-
-		"""Convert csv file to pandas dataframe for easy referencing"""
+		csv_name = self.csv_name		
 		datacsv = os.path.join(csv_dir, csv_name)
-		# Note that country 'NA' should not be read as NaN; add keep_default_na=False
-		# Only read empty cells as NaN
+		# Note that country 'NA' should not be read as NaN
+		# Add keep_default_na=False, and only read empty cells as NaN
 		df = pd.read_csv(datacsv, keep_default_na=False, na_values=[''])
 		
-		# Subset the columns for what we need
-		## selected_columns = ['Importer', 'Exporter', 'Importer reported quantity',
-		## 					'Exporter reported quantity', 'Term', 'Unit',
-		## 				]
-		## df = df[selected_columns]
+		return df
 
-		## df = df.head(20)
+	def set_dataframe(self, new_df=None):
+		"""Overwrites the variable df. Useful for filtering."""
+		if new_df is None:
+			df = self.get_dataframe()
+		else:
+			df = new_df
 		return df
 
 	def get_country_list(self, print_output=False):
@@ -57,26 +57,39 @@ class CountryDataFrame(object):
 
 		years = sorted(list(df['Year'].unique()))
 		new_df = pd.DataFrame()
-		new_df['Country'] = self.all_countries
-		for year in years:
-			new_df[str(year) + '_import_counts'] = None
-			new_df[str(year) + '_import_counts'] = None
+		new_df['Country'] = self.get_country_list()
 
-		for year in years:		
-			im_col_name = str(year) + '_import_counts'
-			ex_col_name = str(year) + '_export_counts'
-			for index, row in new_df.iterrows():
-				country = row['Country']
+		for index, row in new_df.iterrows():
+			country = row['Country']
+			# Get the total counts
+			total_imports = len(df[df['Importer'] == country])
+			total_exports = len(df[df['Exporter'] == country])
+			new_df.loc[index, 'Total imports'] = total_imports
+			new_df.loc[index, 'Total exports'] = total_exports
+			new_df.loc[index, 'Net imports'] = total_imports - total_exports
+
+			# Get the counts per year
+			for year in years:
+				col_name = {}
+				col_name['im'] = str(year) + '_import_counts'
+				col_name['ex'] = str(year) + '_export_counts'
+				col_name['net'] = str(year) + '_net_import_counts'
+
+				# Subset the data by year
 				df_sub = df[df['Year'] == year]
 
-				im_count = len(df_sub[df_sub['Importer'] == country])
-				ex_count = len(df_sub[df_sub['Exporter'] == country])
+				# Count import/export frequency
+				counts = {}
+				counts['im'] = len(df_sub[df_sub['Importer'] == country])
+				counts['ex'] = len(df_sub[df_sub['Exporter'] == country])
+				counts['net'] = counts['im'] - counts['ex']
 
-				new_df.loc[index, im_col_name] = im_count
-				new_df.loc[index, ex_col_name] = ex_count
+				# Create the import and export frequency columns
+				for label in col_name.iterkeys():
+					new_df.loc[index, col_name[label]] = counts[label] 
 
 		# Write to  CSV
-		filename = '{csvname}_imex.csv'.format(csvname=self.csv_name)
+		filename = '{csvname}_imex.csv'.format(csvname=self.csv_name_root)
 		new_df.to_csv(os.path.join(self.csv_dir, filename))
 
 class ImportExportPairs(object):
@@ -92,7 +105,8 @@ class ImportExportPairs(object):
 
 	def get_imex_freq_dict(self):
 		"""
-		Gets weighted list of edges as (importer_country, exporter_country, weight).
+		Gets frequencies of trade as a dictionary:
+		{(importer_country, exporter_country): freq}
 		"""
 		df = self.df
 
@@ -114,7 +128,12 @@ class ImportExportPairs(object):
 		return imex_freq_dict
 
 	def get_imex_weight_dict(self):
-		"""Gets weights."""
+		"""
+		Gets weights as a dictionary:
+		{(importer_country, exporter_country): weight}.
+		Relatively simple function, but allows us to decouple weights from
+		frequencies if necessary.
+		"""
 		imex_weight_dict = {}
 		for imex_tuple, freq in self.imex_freq_dict.iteritems():
 			importer, exporter = imex_tuple
@@ -223,15 +242,19 @@ class DegreeInfo(object):
 
 data = CountryDataFrame('ivory.csv')
 df = data.df
+## data.set_dataframe(df.head(10))
+
 data.create_df_by_imex()
 
-imex_pairs = ImportExportPairs(df, weight_scheme=None)
+# Create a weighted edge
+weight_scheme = 'freq'
+imex_pairs = ImportExportPairs(df, weight_scheme=weight_scheme)
 
 # Create the directed graph
 G = nx.DiGraph()
 
 # Add nodes and edges
-G.add_nodes_from(data.all_countries)
+G.add_nodes_from(data.get_country_list())
 G.add_weighted_edges_from(imex_pairs.edge_list)
 
 # Get degree distribution
@@ -243,3 +266,6 @@ plt.clf()
 nx.draw(G, with_labels=True)
 plt.savefig('ivory_network.png', dpi=400)
 plt.close()
+
+## add country list output
+## get G
