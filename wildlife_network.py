@@ -7,16 +7,21 @@ import powerlaw
 
 """ RELEVANT FUNCTIONS """
 
-class CountryDataFrame(object):
-	"""
-	Class containing information about the raw CSV data.
-	Recommended for pandas-only manipulation (no networkx).
-	"""
+class FullDataFrame(object):
+	"""Methods to extract the original (all data) CSV file."""
 	def __init__(self, csv_name, csv_dir=os.getcwd()):
 		self.csv_name = csv_name
 		self.csv_dir = csv_dir
 		self.csv_name_root = os.path.splitext(self.csv_name)[0]
 		self.df = self.set_dataframe()
+
+	def set_dataframe(self, new_df=None):
+		"""Overwrites the variable df. Useful for filtering."""
+		if new_df is None:
+			df = self.get_dataframe()
+		else:
+			df = new_df
+		return df
 
 	def get_dataframe(self):
 		"""Convert full csv file to pandas dataframe for easy referencing"""
@@ -29,17 +34,22 @@ class CountryDataFrame(object):
 		
 		return df
 
-	def set_dataframe(self, new_df=None):
-		"""Overwrites the variable df. Useful for filtering."""
-		if new_df is None:
-			df = self.get_dataframe()
-		else:
-			df = new_df
-		return df
+class CountryDataFrame(object):
+	"""
+	Methods for a particular dataframe. The dataframe can be derived
+	from an instance of FullDataFrame.
+	"""
+	def __init__(self, df, csv_name_root='test', csv_dir=os.getcwd()):
+		self.df = df
+		self.csv_name_root = csv_name_root
+		self.csv_dir = csv_dir
 
-	def get_country_list(self, print_output=False):
+	def get_country_list(self, years=None, print_output=False):
 		"""Get list of countries without duplicates."""
 		df = self.df
+
+		if years is not None:
+			df = df[df['Year'].isin(years)]
 
 		importers = list(df['Importer'].unique())
 		exporters = list(df['Exporter'].unique())
@@ -49,13 +59,29 @@ class CountryDataFrame(object):
 			print('Country list: ' + all_countries)
 			print('Number of countries: ' + len(all_countries))
 
-		return all_countries
+		return all_countries	
+
+	def get_years(self):
+		df = self.df
+		years = sorted(list(df['Year'].unique()))
+		return years
+
+	## def get_country_node_info(self, years=None):
+	## 	"""
+	## 	Output node information.
+	## 	Format: {node: [year1, year2, ...]}
+	## 	"""
+	## 	if years is None:
+	## 		years = self.get_years()
+
+	## 	for year in years:
+	## 		country_list = self.get_country_list(years=[year])
 
 	def create_df_by_imex(self):
 		"""Create new DataFrame showing net imports and exports."""
 		df = self.df
 
-		years = sorted(list(df['Year'].unique()))
+		years = self.get_years()
 		new_df = pd.DataFrame()
 		new_df['Country'] = self.get_country_list()
 
@@ -159,11 +185,54 @@ class ImportExportPairs(object):
 
 		return edge_list
 
+class GraphInfo(object):
+	def __init__(self, countrydf, graphtype='digraph'):
+		"""
+		Inherit instance of CountryDataFrame
+		(we won't inherit the class, seems more complicated).
+		"""
+		self.df = countrydf
+		self.G = self.make_graph(graphtype)
+		self.in_degrees = self.G.in_degree(weight='weight')
+		self.out_degrees = self.G.out_degree(weight='weight')
+		self.cent_dict = self.get_centrality_dict()
+		self.bet_cen = nx.betweenness_centrality(G)
+		self.clo_cen = nx.betweenness_centrality(G)
+		self.eig_cen = nx.eigenvector_centrality(G)
 
-class DegreeInfo(object):
-	def __init__(self, G):
-		self.in_degrees = G.in_degree(weight='weight')
-		self.out_degrees = G.out_degree(weight='weight')
+	def make_graph(self, graphtype):
+		if graphtype == 'digraph':
+			self.G = nx.DiGraph()
+		elif graphtype == 'multidigraph':
+			self.G = nx.MultiDiGraph()
+
+	def add_nodes(self, nodelist):
+		years = countrydf.get_years()
+		df_sub = df[df['Year'] == year]
+		for year in years:
+			countrylist = df_sub['Importer']
+		
+
+	def get_centrality_dict(self):
+		cent_dict = {}
+		cent_dict['bet'] = nx.betweenness_centrality(G)
+		cent_dict['clo'] = nx.closeness_centrality(G)
+		cent_dict['eig'] = nx.eigenvector_centrality(G)
+
+		return cent_dict
+
+	def get_centrality_csv(self):
+		cen_df = pd.DataFrame()
+		nodelist = G.nodes()
+
+		cen_df['Country'] = nodelist
+
+		for index, row in cen_df.iterrows():
+			country = row['Country']
+			for label in ['bet', 'clo', 'eig']:
+				cen_df.loc[index, label] = self.cent_dict[label][country]
+
+		cen_df.to_csv('centrality_list.csv')
 
 	def plot_degree_files(self):
 		in_degrees = self.in_degrees
@@ -240,32 +309,35 @@ class DegreeInfo(object):
 
 '''####### ACTUAL COMPUTATIONS START HERE #########'''
 
-data = CountryDataFrame('ivory.csv')
-df = data.df
-## data.set_dataframe(df.head(10))
+data = FullDataFrame('ivory.csv')
+df = CountryDataFrame(data.df, csv_name_root='test') 
 
-data.create_df_by_imex()
+cdf.create_df_by_imex()
 
 # Create a weighted edge
 weight_scheme = 'freq'
 imex_pairs = ImportExportPairs(df, weight_scheme=weight_scheme)
 
-# Create the directed graph
-G = nx.DiGraph()
+## # Create the directed graph
+## graph_info = GraphInfo(df)
 
-# Add nodes and edges
-G.add_nodes_from(data.get_country_list())
-G.add_weighted_edges_from(imex_pairs.edge_list)
+## # Add nodes and edges
+## G.add_nodes_from(data.get_country_list())
+## G.add_weighted_edges_from(imex_pairs.edge_list)
 
-# Get degree distribution
-degree_info = DegreeInfo(G)
-degree_info.plot_degree_files()
+## # Get degree distribution
+## graph_info = GraphInfo(G)
+## ## graph_info.plot_degree_files()
+## graph_info.get_centrality_csv()
+
+
+
 
 # Draw
-plt.clf()
-nx.draw(G, with_labels=True)
-plt.savefig('ivory_network.png', dpi=400)
-plt.close()
+## plt.clf()
+## nx.draw(G, with_labels=True)
+## plt.savefig('ivory_network.png', dpi=400)
+## plt.close()
 
 ## add country list output
 ## get G
