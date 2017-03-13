@@ -186,32 +186,14 @@ class ImportExportPairs(object):
 		return edge_list
 
 class GraphInfo(object):
-	def __init__(self, countrydf, graphtype='digraph'):
-		"""
-		Inherit instance of CountryDataFrame
-		(we won't inherit the class, seems more complicated).
-		"""
-		self.df = countrydf
-		self.G = self.make_graph(graphtype)
+	def __init__(self, G):
+		self.G = G
 		self.in_degrees = self.G.in_degree(weight='weight')
 		self.out_degrees = self.G.out_degree(weight='weight')
 		self.cent_dict = self.get_centrality_dict()
 		self.bet_cen = nx.betweenness_centrality(G)
 		self.clo_cen = nx.betweenness_centrality(G)
 		self.eig_cen = nx.eigenvector_centrality(G)
-
-	def make_graph(self, graphtype):
-		if graphtype == 'digraph':
-			self.G = nx.DiGraph()
-		elif graphtype == 'multidigraph':
-			self.G = nx.MultiDiGraph()
-
-	def add_nodes(self, nodelist):
-		years = countrydf.get_years()
-		df_sub = df[df['Year'] == year]
-		for year in years:
-			countrylist = df_sub['Importer']
-		
 
 	def get_centrality_dict(self):
 		cent_dict = {}
@@ -310,7 +292,10 @@ class GraphInfo(object):
 '''####### ACTUAL COMPUTATIONS START HERE #########'''
 
 data = FullDataFrame('ivory.csv')
-df = CountryDataFrame(data.df, csv_name_root='test') 
+## csv_name_root = data.csv_name_root
+csv_name_root='test'
+cdf = CountryDataFrame(data.df, csv_name_root=csv_name_root) 
+df = cdf.df
 
 cdf.create_df_by_imex()
 
@@ -318,26 +303,26 @@ cdf.create_df_by_imex()
 weight_scheme = 'freq'
 imex_pairs = ImportExportPairs(df, weight_scheme=weight_scheme)
 
-## # Create the directed graph
-## graph_info = GraphInfo(df)
+# Create the directed graph
+G = nx.DiGraph()
 
-## # Add nodes and edges
-## G.add_nodes_from(data.get_country_list())
-## G.add_weighted_edges_from(imex_pairs.edge_list)
+# Add nodes and edges
+G.add_nodes_from(cdf.get_country_list())
+G.add_weighted_edges_from(imex_pairs.edge_list)
 
-## # Get degree distribution
-## graph_info = GraphInfo(G)
-## ## graph_info.plot_degree_files()
-## graph_info.get_centrality_csv()
-
-
-
+# Get degree distribution
+graph_info = GraphInfo(G)
+graph_info.plot_degree_files()
+graph_info.get_centrality_csv()
 
 # Draw
-## plt.clf()
-## nx.draw(G, with_labels=True)
-## plt.savefig('ivory_network.png', dpi=400)
-## plt.close()
+plt.clf()
+nx.draw(G, with_labels=True)
+plt.savefig('ivory_network.png', dpi=400)
+plt.close()
+
+# Export G
+nx.write_gexf(G, "test.gexf")
 
 ## add country list output
 ## get G
